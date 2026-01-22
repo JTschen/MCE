@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+  <style>
+    /* V4.0 樣式優化 */
+    body { background-color: #0a0a0a; color: #ffffff; font-family: -apple-system, system-ui, sans-serif; padding-bottom: 60px; }
+    
+    .nav-pills { background: #1a1a1a; border-radius: 50px; padding: 5px; margin: 15px 0 25px 0; border: 1px solid #333; }
+    .nav-pills .nav-link { color: #aaaaaa; border-radius: 50px; font-weight: bold; transition: 0.3s; }
+    .nav-pills .nav-link.active { background-color: #0d6efd; color: #ffffff !important; box-shadow: 0 0 15px rgba(13,110,253,0.4); }
+    
+    .card { background: #161616; border: 1px solid #333; border-radius: 16px; margin-bottom: 15px; overflow: hidden; }
+    .player-section { background: #1e1e1e; padding: 15px; border-radius: 12px; margin-bottom: 12px; border-left: 5px solid #0d6efd; }
+    
+    .form-control { background: #262626 !important; border: 1px solid #444 !important; color: #ffffff !important; }
+    .form-control::placeholder { color: #999 !important; }
+    .form-control:focus { border-color: #0d6efd !important; box-shadow: 0 0 0 0.25rem rgba(13,110,253,0.25) !important; }
+    
+    .text-muted { color: #bbbbbb !important; }
+    .text-bright-info { color: #74c0fc !important; font-weight: 500; } 
+    
+    .detail-win { background: linear-gradient(145deg, #132a13, #081c15) !important; border: 2px solid #2d6a4f !important; }
+    .detail-lose { background: linear-gradient(145deg, #3d0c0c, #1c0808) !important; border: 2px solid #660708 !important; }
+    .detail-draw { background: linear-gradient(145deg, #3d340c, #1c1a08) !important; border: 2px solid #a47128 !important; }
+
+    .cmdr-img { width: 48%; max-width: 90px; border-radius: 8px; margin: 2px; border: 1px solid rgba(255,255,255,0.2); cursor: pointer; transition: transform 0.2s; }
+    .cmdr-img:hover { transform: scale(1.05); border-color: #fff; }
+    .elo-formula { font-family: monospace; font-size: 0.75rem; background: rgba(0,0,0,0.6); padding: 5px 10px; border-radius: 6px; color: #fff; }
+    
+    /* Autocomplete 樣式 */
+    .ui-autocomplete { background: #262626; color: white; border: 1px solid #444; max-height: 250px; overflow-y: auto; overflow-x: hidden; z-index: 1050; }
+    .ui-menu-item-wrapper { padding: 5px 10px; }
+    .ui-state-active, .ui-widget-content .ui-state-active { background: #0d6efd; border: none; color: white; }
+
+    #loadingOverlay { position:fixed; top:0; left:0; width:100%; height:100%; background:#0a0a0a; z-index:9999; display:flex; flex-direction:column; justify-content:center; align-items:center; }
+  </style>
+</head>
+<body>
+
+<div id="loadingOverlay">
+  <div class="spinner-border text-primary mb-3"></div>
+  <div class="fw-bold text-light">正在同步數據...</div>
+</div>
+
+<div class="container mt-2" style="max-width: 550px;">
+  <ul class="nav nav-pills nav-fill" id="pills-tab" role="tablist">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#view-report" type="button">回報對局</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#view-query" type="button">戰績查詢</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#view-rank" type="button" onclick="renderRank(0)">排行榜</button></li>
+  </ul>
+
+  <div class="tab-content">
+    
+    <div class="tab-pane fade show active" id="view-report" role="tabpanel">
+      <div class="card border-primary bg-primary bg-opacity-10 mb-3 text-center shadow-sm">
+        <div class="card-body py-3">
+          <h6 class="fw-bold text-primary mb-1">尚未註冊您的暱稱？</h6>
+          <p class="small text-muted mb-3">※ 只需 10 秒即可完成，請點選下方按鈕</p>
+          <div class="d-flex justify-content-center gap-2">
+            <a href="https://forms.gle/KkLTBLcQjwzNo1Um6" target="_blank" class="btn btn-primary btn-sm rounded-pill px-4 fw-bold shadow">立即註冊</a>
+            <button class="btn btn-outline-primary btn-sm rounded-pill px-3" onclick="copyLink('https://forms.gle/KkLTBLcQjwzNo1Um6', this)">複製連結</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="players-input-area"></div>
+
+      <div class="card p-3 shadow-lg border-info">
+        <label class="small text-info fw-bold mb-2">本局勝者</label>
+        <select id="winnerSelect" class="form-select bg-dark text-white border-0"></select>
+      </div>
+
+      <button class="btn btn-primary w-100 btn-lg rounded-pill shadow-lg mt-3 mb-5 fw-bold" onclick="submitGame(this)">提交對局結果</button>
+    </div>
+
+    <div class="tab-pane fade" id="view-query" role="tabpanel">
+      <div class="input-group mb-4 shadow-sm">
+        <input type="text" id="querySearch" class="form-control rounded-start-pill border-0 px-4" placeholder="輸入暱稱搜尋戰績..." list="searchList">
+        <button class="btn btn-primary rounded-end-pill px-4" onclick="doQuery()">搜尋</button>
+      </div>
+      <div id="queryResultArea"></div>
+    </div>
+
+    <div class="tab-pane fade" id="view-rank" role="tabpanel">
+      <div class="card p-0 shadow-lg">
+        <table class="table table-dark table-hover mb-0 text-center">
+          <thead>
+            <tr><th>#</th><th class="text-start">玩家</th><th class="text-end px-4">ELO</th></tr>
+          </thead>
+          <tbody id="rankTableBody"></tbody>
+        </table>
+      </div>
+      <div class="d-flex justify-content-between mt-3 px-1">
+        <button id="prevRank" class="btn btn-outline-light btn-sm rounded-pill px-3" onclick="changePage(-1)">上一頁</button>
+        <span id="rankPageInfo" class="small text-muted align-self-center fw-bold"></span>
+        <button id="nextRank" class="btn btn-outline-light btn-sm rounded-pill px-3" onclick="changePage(1)">下一頁</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="modalView" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.98); z-index:10000; overflow-y:auto; padding:20px;">
+  <div class="container" style="max-width: 550px;">
+    <button class="btn btn-outline-light rounded-pill mb-4 px-4 fw-bold" onclick="closeModal()">← 關閉詳情</button>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<datalist id="searchList"></datalist>
+
+<script>
+  var gSearchData = [], gLeaderboard = [], currentPage = 0, pageSize = 20;
+
+  document.addEventListener('DOMContentLoaded', function() {
+    renderReportForm();
+    refreshGlobal();
+  });
+
+  function refreshGlobal() {
+    google.script.run.withSuccessHandler(function(res) {
+      document.getElementById('loadingOverlay').style.display = 'none';
+      if(res.status === "success") {
+        gSearchData = res.searchData;
+        gLeaderboard = res.leaderboard;
+        var dl = document.getElementById('searchList');
+        dl.innerHTML = "";
+        gSearchData.forEach(function(i) {
+          var o = document.createElement('option'); o.value = i.value; dl.appendChild(o);
+        });
+      }
+    }).getGlobalData();
+  }
+
+  function renderReportForm() {
+    var h = "";
+    for(var i=1; i<=4; i++) {
+      h += '<div class="player-section shadow-sm">' +
+           '<label class="small text-muted mb-1 fw-bold">玩家 ' + i + '</label>' +
+           '<input class="form-control mb-2 border-0 fw-bold" id="p' + i + '" list="searchList" placeholder="請選擇或輸入暱稱..." onchange="syncWinners()">' +
+           '<div class="row g-2">' +
+           '<div class="col-6"><input class="form-control form-control-sm scryfall-input" id="p' + i + 'c1" placeholder="指揮官 1"></div>' +
+           '<div class="col-6"><input class="form-control form-control-sm scryfall-input" id="p' + i + 'c2" placeholder="指揮官 2"></div>' +
+           '</div></div>';
+    }
+    document.getElementById('players-input-area').innerHTML = h;
+    initScryfall();
+  }
+
+  // V4.0: 依照您的參數設定 minLength: 1, delay: 300
+  function initScryfall() {
+    $(".scryfall-input").autocomplete({
+      source: function(request, response) {
+        if (!request.term || request.term.trim().length < 1) return;
+        $.getJSON("https://api.scryfall.com/cards/autocomplete?q=" + encodeURIComponent(request.term), function(data) {
+          response(data.data);
+        });
+      },
+      minLength: 1, 
+      delay: 300,   
+      autoFocus: false,
+      position: { my: "left top", at: "left bottom", collision: "flip" }
+    });
+  }
+
+  function syncWinners() {
+    var sel = document.getElementById('winnerSelect');
+    var cur = sel.value;
+    sel.innerHTML = '<option value="">請選擇本局勝者...</option>';
+    for(var i=1; i<=4; i++) {
+      var v = document.getElementById('p'+i).value;
+      if(v) {
+        var o = document.createElement('option'); o.value = v; o.innerText = v;
+        if(v === cur) o.selected = true;
+        sel.appendChild(o);
+      }
+    }
+    var d = document.createElement('option'); d.value = "Draw"; d.innerText = "和局 (Draw)";
+    if(cur === "Draw") d.selected = true;
+    sel.appendChild(d);
+  }
+
+  function submitGame(btn) {
+    var validOptions = gSearchData.map(function(item) { return item.value; });
+    for (var i = 1; i <= 4; i++) {
+      var v = document.getElementById('p' + i).value;
+      if (!v || validOptions.indexOf(v) === -1) {
+        alert("玩家 " + i + " 無效，請從建議清單中選擇已註冊的玩家。");
+        return;
+      }
+    }
+    var winVal = document.getElementById('winnerSelect').value;
+    if (!winVal) return alert("請選擇本局勝者");
+
+    btn.disabled = true; 
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 傳送中...';
+    
+    var data = { 
+      p1: document.getElementById('p1').value, p1c1: document.getElementById('p1c1').value, p1c2: document.getElementById('p1c2').value,
+      p2: document.getElementById('p2').value, p2c1: document.getElementById('p2c1').value, p2c2: document.getElementById('p2c2').value,
+      p3: document.getElementById('p3').value, p3c1: document.getElementById('p3c1').value, p3c2: document.getElementById('p3c2').value,
+      p4: document.getElementById('p4').value, p4c1: document.getElementById('p4c1').value, p4c2: document.getElementById('p4c2').value,
+      winner: winVal 
+    };
+
+    google.script.run.withSuccessHandler(function(res) {
+      if(res.status === "success") {
+        alert("對局回報成功！");
+        location.reload();
+      } else {
+        alert("回報失敗: " + res.message);
+        btn.disabled = false;
+        btn.innerText = "提交對局結果";
+      }
+    }).submitMatch(data);
+  }
+
+  function doQuery() {
+    var val = document.getElementById('querySearch').value;
+    if(!val) return;
+    document.getElementById('queryResultArea').innerHTML = "<div class='text-center p-5 text-muted'><div class='spinner-border spinner-border-sm text-primary'></div> 正在讀取戰績...</div>";
+    
+    google.script.run.withSuccessHandler(function(res) {
+      if(res.status === "error") {
+        document.getElementById('queryResultArea').innerHTML = '<div class="alert alert-danger">' + res.message + '</div>';
+        return;
+      }
+      var myRank = 0;
+      for(var i=0; i<gLeaderboard.length; i++) {
+        if(gLeaderboard[i].id === res.player.id) { myRank = i + 1; break; }
+      }
+      var h = '<div class="card p-4 text-center border-info mb-4 shadow-lg">' +
+              '<div class="small text-muted mb-1">Player ID: ' + res.player.id + '</div>' +
+              '<h3 class="fw-bold text-light mb-3">' + res.player.name + '</h3>' +
+              '<div class="d-flex justify-content-center gap-2">' +
+              '<span class="badge bg-success px-3 py-2 fs-6 shadow-sm">ELO: ' + parseFloat(res.player.elo).toFixed(2) + '</span>' +
+              '<span class="badge bg-dark border border-secondary px-3 py-2 fs-6">排名: ' + myRank + ' / ' + gLeaderboard.length + '</span>' +
+              '</div></div>';
+      
+      if(!res.history || res.history.length === 0) {
+        h += "<div class='text-center p-5 text-muted'>尚無對局紀錄</div>";
+      } else {
+        res.history.forEach(function(m) {
+          var pIdx = m.pIDs.indexOf(res.player.id);
+          var diff = m.eloData.diff[pIdx];
+          var diffText = (diff >= 0 ? '+' : '') + diff.toFixed(2);
+          
+          h += '<div class="card p-3 mb-2" style="cursor:pointer; background:#1e1e1e;" onclick=\'showMatchDetail(' + JSON.stringify(m) + ')\'>' +
+               '<div class="d-flex justify-content-between align-items-center">' +
+               '<div><span class="fw-bold text-primary">#' + m.matchID + '</span><br><small class="text-bright-info">' + m.timestamp + '</small></div>' +
+               '<div class="text-end"><span class="' + (diff >= 0 ? 'text-success' : 'text-danger') + ' fw-bold fs-5">' + diffText + '</span></div>' +
+               '</div></div>';
+        });
+      }
+      document.getElementById('queryResultArea').innerHTML = h;
+    }).queryPlayerStats(val);
+  }
+
+  function showMatchDetail(m) {
+    document.getElementById('modalView').style.display = "block";
+    var h = '<div class="card p-3 mb-3 text-center" style="background:#222; border: 1px solid #444;">' +
+            '<div class="small text-bright-info mb-1 fw-bold">Match ID: #' + m.matchID + '</div>' +
+            '<div class="fw-bold fs-5 text-light">' + (m.winner === "Draw" ? "🤝 最終和局" : "👑 最終勝者: " + m.winner) + '</div>' +
+            '</div><div class="row g-2">';
+    
+    m.pIDs.forEach(function(pid, i) {
+      var typeClass = "detail-lose";
+      if (m.winner === "Draw") typeClass = "detail-draw";
+      else if (m.winner === pid) typeClass = "detail-win";
+
+      var diff = m.eloData.diff[i];
+      var diffText = (diff >= 0 ? '+' : '') + diff.toFixed(2);
+      var before = parseFloat(m.eloData.before[i]).toFixed(2);
+      var after = parseFloat(m.eloData.after[i]).toFixed(2);
+      
+      h += '<div class="col-6"><div class="card p-2 ' + typeClass + '" style="min-height:230px; border:0; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">' +
+           '<div class="small text-center fw-bold text-white text-truncate mb-2">' + m.pNames[i] + '</div>' +
+           '<div class="d-flex justify-content-center my-2">';
+      
+      m.cmds[i].forEach(function(n) {
+        if(n && n.trim()) {
+          h += '<img src="https://api.scryfall.com/cards/named?fuzzy=' + encodeURIComponent(n) + '&format=image&version=small" ' +
+               'class="cmdr-img" title="點擊查看卡片詳情" onclick="window.open(\'https://scryfall.com/search?q=' + encodeURIComponent(n) + '\', \'_blank\')">';
+        }
+      });
+      
+      h += '</div><div class="text-center mt-auto">' +
+           '<div class="elo-formula shadow-sm">' + before + ' ' + diffText + ' = ' + after + '</div>' +
+           '</div></div></div>';
+    });
+    document.getElementById('modalContent').innerHTML = h + '</div>';
+  }
+
+  function renderRank(page) {
+    currentPage = page;
+    var body = document.getElementById('rankTableBody');
+    var start = currentPage * pageSize;
+    var end = start + pageSize;
+    var pageData = gLeaderboard.slice(start, end);
+    var h = "";
+    if(pageData.length === 0) { h = "<tr><td colspan='3' class='p-5 text-muted'>暫無數據</td></tr>"; } 
+    else {
+      pageData.forEach(function(p, i) {
+        var globalIdx = start + i;
+        h += '<tr><td>' + (globalIdx + 1) + '</td><td class="text-start">' + p.name + '</td><td class="text-end fw-bold text-success px-4">' + p.elo + '</td></tr>';
+      });
+    }
+    body.innerHTML = h;
+    var totalPages = Math.ceil(gLeaderboard.length / pageSize) || 1;
+    document.getElementById('rankPageInfo').innerText = (currentPage + 1) + " / " + totalPages;
+    document.getElementById('prevRank').disabled = (currentPage === 0);
+    document.getElementById('nextRank').disabled = (end >= gLeaderboard.length);
+  }
+
+  function changePage(step) { renderRank(currentPage + step); }
+  function copyLink(text, btn) { var t = document.createElement("textarea"); t.value = text; document.body.appendChild(t); t.select(); document.execCommand("copy"); document.body.removeChild(t); var oldText = btn.innerText; btn.innerText = "已複製！"; setTimeout(function() { btn.innerText = oldText; }, 2000); }
+  function closeModal() { document.getElementById('modalView').style.display = "none"; }
+</script>
+</body>
+</html>
